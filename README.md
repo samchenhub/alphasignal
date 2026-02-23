@@ -1,5 +1,7 @@
 # AlphaSignal
 
+[![CI](https://github.com/samchenhub/alphasignal/actions/workflows/ci.yml/badge.svg)](https://github.com/samchenhub/alphasignal/actions/workflows/ci.yml)
+
 A real-time financial intelligence platform that monitors US, A-share, and Hong Kong market news, extracts structured sentiment signals using Claude AI, and visualizes them alongside stock prices.
 
 > **Status:** Core infrastructure complete and running. LLM analysis requires an Anthropic API key — the platform runs without one, skipping the analysis step.
