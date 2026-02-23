@@ -29,6 +29,9 @@ dependencies = [
     # Scheduling
     "apscheduler==3.10.4",
 
+    # Auth
+    "pyjwt[cryptography]>=2.8.0",    # Clerk JWT verification
+
     # Utilities
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",

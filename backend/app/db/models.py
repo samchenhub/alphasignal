@@ -92,6 +92,21 @@ class StockPrice(Base):
     volume: Mapped[int | None] = mapped_column(BigInteger)
 
 
+class UserWatchlist(Base):
+    """Per-user ticker watchlist (Clerk user_id → ticker mapping)."""
+
+    __tablename__ = "user_watchlists"
+    __table_args__ = (UniqueConstraint("user_id", "ticker"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(255), index=True)  # Clerk sub
+    ticker: Mapped[str] = mapped_column(String(20))
+    market: Mapped[str] = mapped_column(String(10))  # 'US' | 'CN' | 'HK'
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Alert(Base):
     """Extreme sentiment events."""
 

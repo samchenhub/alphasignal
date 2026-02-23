@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Scheduling
     fetch_interval_minutes: int = 15
 
+    # Clerk auth (optional — auth features disabled when not set)
+    clerk_jwks_url: str = ""
+
     # Alerts
     alert_sentiment_threshold: float = 0.85
     alert_confidence_threshold: float = 0.90

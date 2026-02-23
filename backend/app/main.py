@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import alerts, news, search, sentiment
+from app.api import alerts, news, search, sentiment, watchlist
 from app.scheduler.tasks import create_scheduler, run_ingestion, run_price_sync
 
 logging.basicConfig(
@@ -67,6 +67,7 @@ app.include_router(sentiment.router)
 app.include_router(news.router)
 app.include_router(search.router)
 app.include_router(alerts.router)
+app.include_router(watchlist.router)
 
 
 @app.get("/health")
