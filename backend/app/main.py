@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import alerts, news, search, sentiment, watchlist
+from app.config import settings
 from app.scheduler.tasks import create_scheduler, run_ingestion, run_price_sync
 
 logging.basicConfig(
@@ -56,7 +57,7 @@ app = FastAPI(
 # Allow the Next.js frontend (and local dev) to call the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
