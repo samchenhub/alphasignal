@@ -40,7 +40,7 @@ async def run_ingestion():
     # Run LLM analysis on the newly ingested articles
     async with AsyncSessionLocal() as session:
         from app.analysis.claude_analyzer import process_unanalyzed_articles
-        processed = await process_unanalyzed_articles(session, batch_size=20)
+        processed = await process_unanalyzed_articles(session, batch_size=50)
         logger.info("LLM analysis complete: %d articles processed", processed)
 
 

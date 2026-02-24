@@ -22,15 +22,20 @@ def _check_secret(x_admin_secret: str | None):
 
 @router.post("/sync")
 async def trigger_sync(x_admin_secret: str | None = Header(default=None)):
-    """Manually trigger news ingestion + price sync."""
+    """Manually trigger news ingestion + price sync (runs in background, returns immediately)."""
+    import asyncio
     _check_secret(x_admin_secret)
-    try:
-        await run_ingestion()
-        await run_price_sync(days_back=7)
-        return {"status": "ok", "message": "Sync triggered successfully"}
-    except Exception as e:
-        logger.error("Manual sync failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+
+    async def _run():
+        try:
+            await run_ingestion()
+            await run_price_sync(days_back=7)
+            logger.info("Manual sync complete.")
+        except Exception as e:
+            logger.error("Manual sync failed: %s", e)
+
+    asyncio.create_task(_run())
+    return {"status": "ok", "message": "Sync started in background"}
 
 
 @router.get("/llm-status")
