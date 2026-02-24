@@ -57,15 +57,13 @@ async def llm_status():
 
 @router.get("/debug-analysis")
 async def debug_analysis(x_admin_secret: str | None = Header(default=None)):
-    """Run analysis on one unprocessed article and return raw result."""
+    """Run LLM analysis on one recent article (processed or not) and return the full trace."""
     _check_secret(x_admin_secret)
-    from sqlalchemy import select, text
+    import asyncio
     from app.db.models import Article
     from app.analysis.claude_analyzer import _client, _is_relevant, _analyze, GROQ_MODEL
-    from app.config import settings
 
     async with AsyncSessionLocal() as session:
-        # Count processed vs unprocessed
         total = (await session.execute(text("SELECT COUNT(*) FROM articles"))).scalar()
         unprocessed = (await session.execute(
             text("SELECT COUNT(*) FROM articles WHERE is_processed = false")
@@ -74,30 +72,50 @@ async def debug_analysis(x_admin_secret: str | None = Header(default=None)):
         if not _client:
             return {"error": "GROQ_API_KEY not configured", "total": total, "unprocessed": unprocessed}
 
-        # Grab one unprocessed article
+        # Prefer unprocessed; fall back to any recent article so we can always test
         result = await session.execute(
             select(Article).where(Article.is_processed == False).limit(1)  # noqa: E712
         )
         article = result.scalar_one_or_none()
         if not article:
-            return {"error": "No unprocessed articles", "total": total, "unprocessed": unprocessed}
+            result = await session.execute(
+                select(Article).order_by(Article.fetched_at.desc()).limit(1)
+            )
+            article = result.scalar_one_or_none()
+
+        if not article:
+            return {"error": "No articles in DB", "total": total, "unprocessed": unprocessed}
 
         tickers = settings.us_ticker_list if article.market == "US" else settings.cn_ticker_list
-        import asyncio
         try:
             relevant = await asyncio.to_thread(_is_relevant, article.title or "", article.content or "", tickers)
             analysis = await asyncio.to_thread(_analyze, article.title or "", article.content or "", tickers, article.market) if relevant else None
             return {
                 "total": total,
                 "unprocessed": unprocessed,
-                "article_title": article.title[:100],
+                "article_is_already_processed": article.is_processed,
+                "article_title": (article.title or "")[:100],
                 "article_market": article.market,
                 "tickers_checked": tickers,
                 "is_relevant": relevant,
                 "analysis_result": analysis,
             }
         except Exception as e:
-            return {"error": str(e), "total": total, "unprocessed": unprocessed, "article_title": article.title[:100]}
+            return {"error": str(e), "total": total, "unprocessed": unprocessed,
+                    "article_title": (article.title or "")[:100]}
+
+
+@router.post("/reset-unprocessed")
+async def reset_unprocessed(limit: int = 20, x_admin_secret: str | None = Header(default=None)):
+    """Mark the N most recent articles as unprocessed so they get re-analyzed."""
+    _check_secret(x_admin_secret)
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(
+            text(f"UPDATE articles SET is_processed = false WHERE id IN "
+                 f"(SELECT id FROM articles ORDER BY fetched_at DESC LIMIT {limit})")
+        )
+        await session.commit()
+        return {"reset": res.rowcount, "message": f"Reset {res.rowcount} articles to unprocessed"}
 
 
 @router.get("/stats")

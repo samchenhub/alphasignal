@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://alphasignal:changeme@db:5432/alphasignal"
 
     # Stock universe
-    us_tickers: str = "AAPL,MSFT,GOOGL,AMZN,NVDA,TSLA,META"
+    us_tickers: str = "AAPL,MSFT,GOOGL,AMZN,NVDA,TSLA,META,JPM,V,JNJ,WMT,XOM,BAC,MA,PG,HD,CVX,MRK,ABBV,PFE,KO,AVGO,COST,TMO,CSCO,MCD,DIS,ADBE,CRM,NFLX,AMD,INTC,QCOM,GS,MS"
     cn_tickers: str = "600519,000858,300750"
 
     # Scheduling
