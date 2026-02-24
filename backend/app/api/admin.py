@@ -11,8 +11,14 @@ from app.config import settings
 from app.db.connection import AsyncSessionLocal
 from app.scheduler.tasks import run_ingestion, run_price_sync
 
+import asyncio
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+# Prevent multiple manual syncs from running concurrently and hammering Groq rate limits
+_sync_lock = asyncio.Lock()
+_sync_running = False
 
 
 def _check_secret(x_admin_secret: str | None):
@@ -23,16 +29,23 @@ def _check_secret(x_admin_secret: str | None):
 @router.post("/sync")
 async def trigger_sync(x_admin_secret: str | None = Header(default=None)):
     """Manually trigger news ingestion + price sync (runs in background, returns immediately)."""
-    import asyncio
+    global _sync_running
     _check_secret(x_admin_secret)
 
+    if _sync_running:
+        return {"status": "skipped", "message": "Sync already in progress"}
+
     async def _run():
+        global _sync_running
+        _sync_running = True
         try:
             await run_ingestion()
             await run_price_sync(days_back=7)
             logger.info("Manual sync complete.")
         except Exception as e:
             logger.error("Manual sync failed: %s", e)
+        finally:
+            _sync_running = False
 
     asyncio.create_task(_run())
     return {"status": "ok", "message": "Sync started in background"}
