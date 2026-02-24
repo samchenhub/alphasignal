@@ -4,8 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Claude (optional — LLM analysis is skipped when not set)
-    anthropic_api_key: str = ""
+    # Gemini (optional — LLM analysis is skipped when not set)
+    # Free tier: 1,500 requests/day — https://aistudio.google.com
+    gemini_api_key: str = ""
 
     # Database
     # Railway provides DATABASE_URL as postgresql:// or postgres://

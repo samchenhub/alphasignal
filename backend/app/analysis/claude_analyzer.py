@@ -1,17 +1,12 @@
 """
-Core LLM analysis pipeline using the Anthropic Claude API.
+LLM Analysis Pipeline — Google Gemini Flash
 
 Two-stage processing:
-  Stage 1 — Haiku (cheap, fast): filter irrelevant articles
-  Stage 2 — Sonnet (powerful): full structured extraction
+  Stage 1 — Gemini Flash (fast): filter irrelevant articles
+  Stage 2 — Gemini Flash (powerful): full structured extraction
 
-For each relevant article, produces:
-  - sentiment_score (-1.0 to 1.0)
-  - confidence (0.0 to 1.0)
-  - named entities (companies, tickers, people)
-  - one-sentence summary
-  - key financial events
-  - embedding vector (via Claude's text-embedding via Sonnet output reuse)
+Free tier: 1,500 requests/day, 1M tokens/day
+https://aistudio.google.com
 """
 import asyncio
 import json
@@ -19,7 +14,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-import anthropic
+import google.generativeai as genai
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -35,58 +30,63 @@ from app.db.models import Alert, AnalysisResult, Article
 
 logger = logging.getLogger(__name__)
 
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else None
+GEMINI_MODEL = "gemini-1.5-flash"
 
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
-SONNET_MODEL = "claude-sonnet-4-6"
+# Initialise Gemini models — None when API key is not configured
+_filter_model = None
+_analysis_model = None
+
+if settings.gemini_api_key:
+    genai.configure(api_key=settings.gemini_api_key)
+    _filter_model = genai.GenerativeModel(
+        GEMINI_MODEL,
+        system_instruction=FILTER_SYSTEM,
+    )
+    _analysis_model = genai.GenerativeModel(
+        GEMINI_MODEL,
+        system_instruction=ANALYSIS_SYSTEM,
+    )
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _call_haiku(messages: list[dict], system: str) -> str:
-    response = client.messages.create(
-        model=HAIKU_MODEL,
-        max_tokens=256,
-        system=system,
-        messages=messages,
-    )
-    return response.content[0].text
+def _call_gemini_filter(prompt: str) -> str:
+    return _filter_model.generate_content(prompt).text
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _call_sonnet(messages: list[dict], system: str) -> str:
-    response = client.messages.create(
-        model=SONNET_MODEL,
-        max_tokens=1024,
-        system=system,
-        messages=messages,
-    )
-    return response.content[0].text
+def _call_gemini_analysis(prompt: str) -> str:
+    return _analysis_model.generate_content(prompt).text
+
+
+def _strip_fences(raw: str) -> str:
+    """Remove markdown code fences that Gemini sometimes wraps JSON in."""
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = "\n".join(cleaned.split("\n")[1:])
+    if cleaned.endswith("```"):
+        cleaned = "\n".join(cleaned.split("\n")[:-1])
+    return cleaned.strip()
 
 
 def _is_relevant(title: str, content: str, tickers: list[str]) -> bool:
-    """Stage 1: Quick relevance filter via Haiku."""
+    """Stage 1: Quick relevance filter via Gemini Flash."""
     prompt = filter_prompt(title, content, tickers)
     try:
-        raw = _call_haiku([{"role": "user", "content": prompt}], FILTER_SYSTEM)
-        data = json.loads(raw)
+        raw = _call_gemini_filter(prompt)
+        data = json.loads(_strip_fences(raw))
         return bool(data.get("relevant", False))
-    except (json.JSONDecodeError, Exception) as e:
+    except Exception as e:
         logger.debug("Filter parse error: %s — defaulting to relevant", e)
-        return True  # When in doubt, analyze it
+        return True  # When in doubt, analyse it
 
 
 def _analyze(title: str, content: str, tickers: list[str], market: str) -> dict | None:
-    """Stage 2: Full structured extraction via Sonnet."""
+    """Stage 2: Full structured extraction via Gemini Flash."""
     prompt = analysis_prompt(title, content, tickers, market)
+    raw = ""
     try:
-        raw = _call_sonnet([{"role": "user", "content": prompt}], ANALYSIS_SYSTEM)
-        # Strip markdown code fences if present
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = "\n".join(cleaned.split("\n")[1:])
-        if cleaned.endswith("```"):
-            cleaned = "\n".join(cleaned.split("\n")[:-1])
-        return json.loads(cleaned.strip())
+        raw = _call_gemini_analysis(prompt)
+        return json.loads(_strip_fences(raw))
     except json.JSONDecodeError as e:
         logger.warning("JSON parse error in analysis: %s\nRaw: %s", e, raw[:200])
         return None
@@ -103,14 +103,13 @@ async def process_unanalyzed_articles(
     Main processing loop: fetch unprocessed articles, run analysis, store results.
     Returns the number of articles processed.
     """
-    if client is None:
-        logger.warning("ANTHROPIC_API_KEY not set — skipping LLM analysis")
+    if _filter_model is None:
+        logger.warning("GEMINI_API_KEY not set — skipping LLM analysis")
         return 0
 
     tickers_us = settings.us_ticker_list
     tickers_cn = settings.cn_ticker_list
 
-    # Fetch unprocessed articles
     result = await session.execute(
         select(Article)
         .where(Article.is_processed == False)  # noqa: E712
@@ -127,7 +126,7 @@ async def process_unanalyzed_articles(
     for article in articles:
         tickers = tickers_us if article.market == "US" else tickers_cn
 
-        # Stage 1: Filter (run sync function in thread pool to avoid blocking event loop)
+        # Stage 1: Filter
         relevant = await asyncio.to_thread(
             _is_relevant,
             article.title or "",
@@ -139,7 +138,7 @@ async def process_unanalyzed_articles(
             article.is_processed = True
             continue
 
-        # Stage 2: Deep analysis (run sync function in thread pool)
+        # Stage 2: Deep analysis
         result_data = await asyncio.to_thread(
             _analyze,
             article.title or "",
@@ -157,7 +156,6 @@ async def process_unanalyzed_articles(
         if not relevant_tickers:
             continue
 
-        # Create one AnalysisResult per relevant ticker
         for ticker in relevant_tickers:
             analysis = AnalysisResult(
                 article_id=article.id,
@@ -168,11 +166,10 @@ async def process_unanalyzed_articles(
                 entities=result_data.get("entities"),
                 summary=result_data.get("summary"),
                 key_events=result_data.get("key_events"),
-                model_version=SONNET_MODEL,
+                model_version=GEMINI_MODEL,
             )
             session.add(analysis)
 
-            # Check alert thresholds
             score = result_data.get("sentiment_score", 0.0) or 0.0
             confidence = result_data.get("confidence", 0.0) or 0.0
 
