@@ -14,16 +14,36 @@ or
 {"relevant": false, "reason": "brief reason"}"""
 
 
+# Map ticker symbols to company names for better LLM matching
+_TICKER_NAMES = {
+    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Google/Alphabet",
+    "AMZN": "Amazon", "NVDA": "Nvidia", "TSLA": "Tesla", "META": "Meta/Facebook",
+    "JPM": "JPMorgan Chase", "V": "Visa", "JNJ": "Johnson & Johnson",
+    "WMT": "Walmart", "XOM": "ExxonMobil", "BAC": "Bank of America",
+    "MA": "Mastercard", "PG": "Procter & Gamble", "HD": "Home Depot",
+    "CVX": "Chevron", "MRK": "Merck", "ABBV": "AbbVie", "PFE": "Pfizer",
+    "KO": "Coca-Cola", "AVGO": "Broadcom", "COST": "Costco",
+    "TMO": "Thermo Fisher", "CSCO": "Cisco", "MCD": "McDonald's",
+    "DIS": "Disney", "ADBE": "Adobe", "CRM": "Salesforce", "NFLX": "Netflix",
+    "AMD": "AMD", "INTC": "Intel", "QCOM": "Qualcomm",
+    "GS": "Goldman Sachs", "MS": "Morgan Stanley",
+}
+
+
 def filter_prompt(title: str, content: str, tickers: list[str]) -> str:
-    ticker_list = ", ".join(tickers)
+    # Include company names so the LLM can match "Home Depot" → HD, etc.
+    ticker_with_names = ", ".join(
+        f"{t} ({_TICKER_NAMES[t]})" if t in _TICKER_NAMES else t
+        for t in tickers
+    )
     snippet = (content or "")[:800]
-    return f"""Tracked tickers: {ticker_list}
+    return f"""Tracked tickers (ticker: company name): {ticker_with_names}
 
 Article title: {title}
 
 Article snippet: {snippet}
 
-Is this article relevant to any of the tracked tickers or to major market events that would affect them? Respond with JSON."""
+Is this article relevant to any of the tracked companies/tickers, or to major market events affecting them? Respond with JSON."""
 
 
 # ─────────────────────────────────────────────
