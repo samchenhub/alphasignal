@@ -36,19 +36,23 @@ async def trigger_sync(x_admin_secret: str | None = Header(default=None)):
 @router.get("/gemini-status")
 async def gemini_status():
     """Check if Gemini is configured and test a live API call."""
-    from app.analysis.claude_analyzer import _filter_model
+    from app.analysis.claude_analyzer import _client, GEMINI_MODEL
+    from google.genai import types
     key = settings.gemini_api_key
     if not key:
-        return {"key_set": False, "model_ready": False, "error": "GEMINI_API_KEY not set"}
-    if _filter_model is None:
-        return {"key_set": True, "model_ready": False, "error": "Model not initialized — redeploy needed"}
-    # Try a real call
+        return {"key_set": False, "client_ready": False, "error": "GEMINI_API_KEY not set"}
+    if _client is None:
+        return {"key_set": True, "client_ready": False, "error": "Client not initialized — redeploy needed"}
     try:
         import asyncio
-        result = await asyncio.to_thread(_filter_model.generate_content, "Say OK")
-        return {"key_set": True, "model_ready": True, "test_response": result.text[:50]}
+        result = await asyncio.to_thread(
+            _client.models.generate_content,
+            model=GEMINI_MODEL,
+            contents="Say OK",
+        )
+        return {"key_set": True, "client_ready": True, "test_response": result.text[:50]}
     except Exception as e:
-        return {"key_set": True, "model_ready": True, "error": str(e)}
+        return {"key_set": True, "client_ready": True, "error": str(e)}
 
 
 @router.get("/stats")
