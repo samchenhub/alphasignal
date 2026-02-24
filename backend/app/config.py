@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # CORS — comma-separated list of allowed frontend origins
     allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # Set to true in production to skip slow startup sync (scheduler handles it)
+    skip_startup_sync: bool = False
+
     @property
     def async_database_url(self) -> str:
         """Normalize Railway/Heroku postgres:// URLs to postgresql+asyncpg://."""

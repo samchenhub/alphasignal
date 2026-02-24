@@ -30,12 +30,15 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     app.state.scheduler = scheduler
 
-    logger.info("Running initial ingestion on startup...")
-    try:
-        await run_ingestion()
-        await run_price_sync(days_back=90)  # Bootstrap 90 days of price history
-    except Exception as e:
-        logger.warning("Initial ingestion failed (non-fatal): %s", e)
+    if not settings.skip_startup_sync:
+        logger.info("Running initial ingestion on startup...")
+        try:
+            await run_ingestion()
+            await run_price_sync(days_back=90)  # Bootstrap 90 days of price history
+        except Exception as e:
+            logger.warning("Initial ingestion failed (non-fatal): %s", e)
+    else:
+        logger.info("Skipping startup sync (SKIP_STARTUP_SYNC=true). Scheduler will handle it.")
 
     logger.info("AlphaSignal ready. API docs at http://localhost:8000/docs")
 
