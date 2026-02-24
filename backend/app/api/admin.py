@@ -33,6 +33,24 @@ async def trigger_sync(x_admin_secret: str | None = Header(default=None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/gemini-status")
+async def gemini_status():
+    """Check if Gemini is configured and test a live API call."""
+    from app.analysis.claude_analyzer import _filter_model
+    key = settings.gemini_api_key
+    if not key:
+        return {"key_set": False, "model_ready": False, "error": "GEMINI_API_KEY not set"}
+    if _filter_model is None:
+        return {"key_set": True, "model_ready": False, "error": "Model not initialized — redeploy needed"}
+    # Try a real call
+    try:
+        import asyncio
+        result = await asyncio.to_thread(_filter_model.generate_content, "Say OK")
+        return {"key_set": True, "model_ready": True, "test_response": result.text[:50]}
+    except Exception as e:
+        return {"key_set": True, "model_ready": True, "error": str(e)}
+
+
 @router.get("/stats")
 async def get_stats(x_admin_secret: str | None = Header(default=None)):
     """Return row counts for all tables — useful for diagnosing empty DB."""
