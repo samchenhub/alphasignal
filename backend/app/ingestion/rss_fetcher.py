@@ -19,7 +19,6 @@ from app.db.models import Article
 logger = logging.getLogger(__name__)
 
 # Free, reliable US financial news RSS feeds
-# Note: Reuters discontinued their free RSS feeds (~2020); replaced with NYT Business + Investing.com
 US_RSS_FEEDS: list[dict] = [
     {
         "source": "NYT Business",
@@ -46,6 +45,25 @@ US_RSS_FEEDS: list[dict] = [
         "url": "https://www.cnbc.com/id/10000664/device/rss/rss.html",
         "market": "US",
     },
+]
+
+# Yahoo Finance per-ticker RSS feeds — these are highly targeted and produce much
+# better signal-to-noise ratio than the general feeds above.
+# Format: https://finance.yahoo.com/rss/headline?s=TICKER
+_YAHOO_TICKER_FEED_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
+    "JPM", "V", "JNJ", "WMT", "XOM", "BAC", "MA", "PG",
+    "HD", "CVX", "MRK", "ABBV", "PFE", "KO", "AVGO", "COST",
+    "DIS", "ADBE", "CRM", "NFLX", "AMD", "INTC", "QCOM", "GS", "MS",
+]
+
+YAHOO_TICKER_FEEDS: list[dict] = [
+    {
+        "source": f"Yahoo Finance ({ticker})",
+        "url": f"https://finance.yahoo.com/rss/headline?s={ticker}",
+        "market": "US",
+    }
+    for ticker in _YAHOO_TICKER_FEED_TICKERS
 ]
 
 
@@ -139,8 +157,10 @@ async def fetch_feed(feed_cfg: dict, session: AsyncSession) -> int:
 
 
 async def fetch_all_us_feeds(session: AsyncSession) -> int:
-    """Fetch all configured US RSS feeds. Returns total new articles."""
+    """Fetch all configured US RSS feeds (general + per-ticker). Returns total new articles."""
     total = 0
     for feed_cfg in US_RSS_FEEDS:
+        total += await fetch_feed(feed_cfg, session)
+    for feed_cfg in YAHOO_TICKER_FEEDS:
         total += await fetch_feed(feed_cfg, session)
     return total
