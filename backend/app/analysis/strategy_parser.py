@@ -97,6 +97,11 @@ Strategy: {natural_language}"""
         logger.warning("Strategy parser JSON decode error: %s", e)
         return {"error": "Could not parse LLM response as JSON. Please rephrase your strategy."}
     except Exception as e:
+        err_str = str(e)
+        if "rate_limit" in err_str or "429" in err_str:
+            if "tokens per day" in err_str or "TPD" in err_str:
+                return {"error": "Daily AI quota exhausted. Resets at midnight PST — please try again tomorrow."}
+            return {"error": "AI service is busy (rate limit). Please wait a minute and try again."}
         logger.error("Strategy parser error: %s", e)
         return {"error": f"Parser error: {str(e)}"}
 

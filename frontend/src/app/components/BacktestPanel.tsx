@@ -104,15 +104,28 @@ export function BacktestPanel({ ticker }: Props) {
         }),
       });
 
-      const data = await res.json();
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        setError(`Server error (${res.status}). Please try again.`);
+        return;
+      }
 
       if (!res.ok) {
-        setError(data.detail ?? "Backtest failed. Please try again.");
+        const detail = data.detail;
+        const msg =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? (detail[0] as { msg?: string })?.msg ?? "Validation error"
+              : `Request failed (${res.status})`;
+        setError(msg);
       } else {
-        setResult(data);
+        setResult(data as unknown as BacktestResult);
       }
-    } catch {
-      setError("Network error. Please check your connection.");
+    } catch (err) {
+      setError(`Network error: ${err instanceof Error ? err.message : "Could not reach server"}`);
     } finally {
       setLoading(false);
     }
