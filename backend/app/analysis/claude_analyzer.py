@@ -1,5 +1,5 @@
 """
-LLM Analysis Pipeline — Google Gemini Flash
+LLM Analysis Pipeline — Google Gemini 2.0 Flash
 
 Two-stage processing:
   Stage 1 — Gemini Flash (fast): filter irrelevant articles
@@ -11,10 +11,9 @@ https://aistudio.google.com
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime, timezone
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -30,32 +29,38 @@ from app.db.models import Alert, AnalysisResult, Article
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.0-flash"
 
-# Initialise Gemini models — None when API key is not configured
-_filter_model = None
-_analysis_model = None
-
+# Initialise Gemini client — None when API key is not configured
+_client = None
 if settings.gemini_api_key:
-    genai.configure(api_key=settings.gemini_api_key)
-    _filter_model = genai.GenerativeModel(
-        GEMINI_MODEL,
-        system_instruction=FILTER_SYSTEM,
-    )
-    _analysis_model = genai.GenerativeModel(
-        GEMINI_MODEL,
-        system_instruction=ANALYSIS_SYSTEM,
-    )
+    _client = genai.Client(api_key=settings.gemini_api_key)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def _call_gemini_filter(prompt: str) -> str:
-    return _filter_model.generate_content(prompt).text
+    response = _client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=FILTER_SYSTEM,
+            max_output_tokens=256,
+        ),
+    )
+    return response.text
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def _call_gemini_analysis(prompt: str) -> str:
-    return _analysis_model.generate_content(prompt).text
+    response = _client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=ANALYSIS_SYSTEM,
+            max_output_tokens=1024,
+        ),
+    )
+    return response.text
 
 
 def _strip_fences(raw: str) -> str:
@@ -103,7 +108,7 @@ async def process_unanalyzed_articles(
     Main processing loop: fetch unprocessed articles, run analysis, store results.
     Returns the number of articles processed.
     """
-    if _filter_model is None:
+    if _client is None:
         logger.warning("GEMINI_API_KEY not set — skipping LLM analysis")
         return 0
 
@@ -126,7 +131,6 @@ async def process_unanalyzed_articles(
     for article in articles:
         tickers = tickers_us if article.market == "US" else tickers_cn
 
-        # Stage 1: Filter
         relevant = await asyncio.to_thread(
             _is_relevant,
             article.title or "",
@@ -138,7 +142,6 @@ async def process_unanalyzed_articles(
             article.is_processed = True
             continue
 
-        # Stage 2: Deep analysis
         result_data = await asyncio.to_thread(
             _analyze,
             article.title or "",
