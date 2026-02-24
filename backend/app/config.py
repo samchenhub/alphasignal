@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Set to true in production to skip slow startup sync (scheduler handles it)
     skip_startup_sync: bool = False
 
+    # Optional secret to protect admin endpoints (leave empty to disable auth)
+    admin_secret: str = ""
+
     @property
     def async_database_url(self) -> str:
         """Normalize Railway/Heroku postgres:// URLs to postgresql+asyncpg://."""
