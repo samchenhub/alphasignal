@@ -1,13 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -126,3 +128,53 @@ class Alert(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class BacktestStrategy(Base):
+    """Natural language strategy input + parsed representation."""
+
+    __tablename__ = "backtest_strategies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    natural_language_input: Mapped[str] = mapped_column(Text, nullable=False)
+    parsed_strategy: Mapped[dict | None] = mapped_column(JSONB)
+    ticker: Mapped[str] = mapped_column(String(20), index=True)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    result: Mapped["BacktestResult | None"] = relationship(
+        back_populates="strategy", uselist=False
+    )
+
+
+class BacktestResult(Base):
+    """Performance metrics + equity curve from a backtest run."""
+
+    __tablename__ = "backtest_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    strategy_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("backtest_strategies.id", ondelete="CASCADE"),
+        index=True,
+    )
+    total_return: Mapped[float | None] = mapped_column(Float)
+    sharpe_ratio: Mapped[float | None] = mapped_column(Float)
+    max_drawdown: Mapped[float | None] = mapped_column(Float)
+    win_rate: Mapped[float | None] = mapped_column(Float)
+    total_trades: Mapped[int | None] = mapped_column(Integer)
+    equity_curve: Mapped[list | None] = mapped_column(JSONB)
+    trade_log: Mapped[list | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    strategy: Mapped["BacktestStrategy"] = relationship(back_populates="result")

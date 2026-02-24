@@ -31,7 +31,7 @@ jobs:
       - name: Run tests with coverage
         run: uv run pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
         env:
-          ANTHROPIC_API_KEY: ""
+          GROQ_API_KEY: ""
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

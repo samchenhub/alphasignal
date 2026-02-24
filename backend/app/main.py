@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, alerts, news, search, sentiment, watchlist
+from app.api import admin, alerts, backtest, news, search, sentiment, watchlist
 from app.config import settings
 from app.scheduler.tasks import create_scheduler, run_ingestion, run_price_sync
 
@@ -78,6 +78,7 @@ app.include_router(news.router)
 app.include_router(search.router)
 app.include_router(alerts.router)
 app.include_router(watchlist.router)
+app.include_router(backtest.router)
 app.include_router(admin.router)
 
 

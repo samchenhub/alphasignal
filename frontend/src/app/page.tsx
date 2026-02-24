@@ -6,11 +6,12 @@ import { StockChart } from "./components/StockChart";
 import { NewsFeed } from "./components/NewsFeed";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { SearchPanel } from "./components/SearchPanel";
+import { BacktestPanel } from "./components/BacktestPanel";
 
 const US_TICKERS = ["AMZN", "NVDA", "AAPL", "MSFT", "GOOGL", "TSLA", "META", "GS", "MS", "ADBE", "NFLX", "DIS", "AMD", "INTC"];
 const CN_TICKERS = ["600519", "000858", "300750"];
 
-type Tab = "chart" | "news" | "alerts" | "search";
+type Tab = "chart" | "news" | "alerts" | "search" | "backtest";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -111,6 +112,7 @@ export default function Home() {
           [
             { id: "chart", label: "Price & Sentiment", icon: "📈" },
             { id: "news", label: "News Feed", icon: "📰" },
+            { id: "backtest", label: "Backtest", icon: "⚡" },
             { id: "alerts", label: "Alerts", icon: "🔔" },
             { id: "search", label: "Search", icon: "🔍" },
           ] as { id: Tab; label: string; icon: string }[]
@@ -138,6 +140,7 @@ export default function Home() {
         {activeTab === "news" && (
           <NewsFeed ticker={selectedTicker} market={selectedMarket} />
         )}
+        {activeTab === "backtest" && <BacktestPanel ticker={selectedTicker} />}
         {activeTab === "alerts" && <AlertsPanel ticker={selectedTicker} />}
         {activeTab === "search" && <SearchPanel market={selectedMarket} />}
       </div>
