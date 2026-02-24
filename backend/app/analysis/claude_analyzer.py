@@ -29,7 +29,7 @@ from app.db.models import Alert, AnalysisResult, Article
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.0-flash-lite"
 
 # Initialise Gemini client — None when API key is not configured
 _client = None
