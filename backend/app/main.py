@@ -4,6 +4,7 @@ AlphaSignal — FastAPI Application Entry Point
 Mounts all API routers and starts the APScheduler background scheduler.
 On startup, triggers an immediate ingestion run so data appears quickly.
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -31,12 +32,17 @@ async def lifespan(app: FastAPI):
     app.state.scheduler = scheduler
 
     if not settings.skip_startup_sync:
-        logger.info("Running initial ingestion on startup...")
-        try:
-            await run_ingestion()
-            await run_price_sync(days_back=90)  # Bootstrap 90 days of price history
-        except Exception as e:
-            logger.warning("Initial ingestion failed (non-fatal): %s", e)
+        # Run in background so the server starts immediately and healthcheck passes
+        async def _background_sync():
+            try:
+                logger.info("Background sync: fetching news and prices...")
+                await run_ingestion()
+                await run_price_sync(days_back=7)
+                logger.info("Background sync complete.")
+            except Exception as e:
+                logger.warning("Background sync failed (non-fatal): %s", e)
+
+        asyncio.create_task(_background_sync())
     else:
         logger.info("Skipping startup sync (SKIP_STARTUP_SYNC=true). Scheduler will handle it.")
 
