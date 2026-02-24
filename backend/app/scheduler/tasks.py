@@ -23,16 +23,18 @@ async def run_ingestion():
         from app.ingestion.rss_fetcher import fetch_all_us_feeds
         from app.ingestion.akshare_news import fetch_cn_news, fetch_hk_news
         from app.ingestion.sec_edgar import fetch_sec_filings
+        from app.ingestion.yfinance_news import fetch_all_ticker_news
 
         us_count = await fetch_all_us_feeds(session)
+        yf_count = await fetch_all_ticker_news(session)
         cn_count = await fetch_cn_news(session)
         hk_count = await fetch_hk_news(session)
         sec_count = await fetch_sec_filings(session)
 
-        total = us_count + cn_count + hk_count + sec_count
+        total = us_count + yf_count + cn_count + hk_count + sec_count
         logger.info(
-            "Ingestion complete: US=%d, CN=%d, HK=%d, SEC=%d (total=%d new articles)",
-            us_count, cn_count, hk_count, sec_count, total,
+            "Ingestion complete: US RSS=%d, YF tickers=%d, CN=%d, HK=%d, SEC=%d (total=%d new articles)",
+            us_count, yf_count, cn_count, hk_count, sec_count, total,
         )
 
     # Run LLM analysis on the newly ingested articles
