@@ -6,13 +6,13 @@ import { NewsFeed } from "./components/NewsFeed";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { SearchPanel } from "./components/SearchPanel";
 
-const US_TICKERS = ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA", "META", "AMZN"];
+const US_TICKERS = ["AMZN", "NVDA", "AAPL", "MSFT", "GOOGL", "TSLA", "META", "GS", "MS", "ADBE", "NFLX", "DIS", "AMD", "INTC"];
 const CN_TICKERS = ["600519", "000858", "300750"];
 
 type Tab = "chart" | "news" | "alerts" | "search";
 
 export default function Home() {
-  const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [selectedTicker, setSelectedTicker] = useState("AMZN");
   const [selectedMarket, setSelectedMarket] = useState<"US" | "CN">("US");
   const [activeTab, setActiveTab] = useState<Tab>("chart");
 
