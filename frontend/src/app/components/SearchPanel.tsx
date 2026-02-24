@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 interface SearchResult {
   article_id: string;
   ticker: string;
@@ -31,7 +29,7 @@ export function SearchPanel({ market }: Props) {
     setIsLoading(true);
     setSearched(true);
     try {
-      const res = await fetch(`${API}/api/v1/search/`, {
+      const res = await fetch(`/api/v1/search/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, market, days: 90, limit: 10 }),

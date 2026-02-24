@@ -2,7 +2,6 @@
 
 import useSWR from "swr";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface NewsItem {
@@ -51,7 +50,7 @@ interface Props {
 
 export function NewsFeed({ ticker, market }: Props) {
   const { data, error, isLoading } = useSWR<NewsItem[]>(
-    `${API}/api/v1/news/${ticker}?days=7&limit=30`,
+    `/api/v1/news/${ticker}?days=7&limit=30`,
     fetcher,
     { refreshInterval: 60_000 }
   );

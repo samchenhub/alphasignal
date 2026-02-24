@@ -15,8 +15,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface PriceSentimentPoint {
@@ -50,13 +48,13 @@ function SentimentBadge({ score }: { score: number }) {
 
 export function StockChart({ ticker, market }: Props) {
   const { data, error, isLoading } = useSWR<PriceSentimentPoint[]>(
-    `${API}/api/v1/sentiment/${ticker}/price-correlation?days=30`,
+    `/api/v1/sentiment/${ticker}/price-correlation?days=30`,
     fetcher,
     { refreshInterval: 60_000 }
   );
 
   const { data: sentimentData } = useSWR<{ sentiment_score: number }[]>(
-    `${API}/api/v1/sentiment/${ticker}?days=1`,
+    `/api/v1/sentiment/${ticker}?days=1`,
     fetcher,
     { refreshInterval: 30_000 }
   );

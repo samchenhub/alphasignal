@@ -2,7 +2,6 @@
 
 import useSWR from "swr";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface AlertItem {
@@ -20,8 +19,8 @@ interface Props {
 
 export function AlertsPanel({ ticker }: Props) {
   const url = ticker
-    ? `${API}/api/v1/alerts/?days=7&ticker=${ticker}`
-    : `${API}/api/v1/alerts/?days=7`;
+    ? `/api/v1/alerts/?days=7&ticker=${ticker}`
+    : `/api/v1/alerts/?days=7`;
 
   const { data, isLoading } = useSWR<AlertItem[]>(url, fetcher, {
     refreshInterval: 30_000,
