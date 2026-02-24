@@ -1,4 +1,4 @@
-"""Initial schema with pgvector
+"""Initial schema
 
 Revision ID: 0001
 Revises:
@@ -9,7 +9,6 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
-from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision: str = "0001"
@@ -19,8 +18,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Enable pgvector extension
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Try to enable pgvector — silently skip if not installed on this host
+    op.execute(sa.text("""
+        DO $$
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS vector;
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END $$
+    """))
+
+    # Check whether pgvector actually loaded
+    conn = op.get_bind()
+    pgvector_ok = bool(
+        conn.execute(
+            sa.text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
+        ).first()
+    )
 
     op.create_table(
         "articles",
@@ -42,6 +56,13 @@ def upgrade() -> None:
     op.create_index("ix_articles_url_hash", "articles", ["url_hash"])
     op.create_index("ix_articles_is_processed", "articles", ["is_processed"])
 
+    # Use Vector(1536) if pgvector is available, else JSONB as a placeholder
+    if pgvector_ok:
+        from pgvector.sqlalchemy import Vector
+        embedding_col = sa.Column("embedding", Vector(1536))
+    else:
+        embedding_col = sa.Column("embedding", JSONB)
+
     op.create_table(
         "analysis_results",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
@@ -58,7 +79,7 @@ def upgrade() -> None:
         sa.Column("entities", JSONB),
         sa.Column("summary", sa.Text),
         sa.Column("key_events", JSONB),
-        sa.Column("embedding", Vector(1536)),
+        embedding_col,
         sa.Column(
             "processed_at",
             sa.DateTime(timezone=True),
@@ -69,15 +90,16 @@ def upgrade() -> None:
     op.create_index("ix_analysis_results_article_id", "analysis_results", ["article_id"])
     op.create_index("ix_analysis_results_ticker", "analysis_results", ["ticker"])
 
-    # HNSW index for fast vector similarity search
-    op.execute(
-        """
-        CREATE INDEX ix_analysis_embedding_hnsw
-        ON analysis_results
-        USING hnsw (embedding vector_cosine_ops)
-        WITH (m = 16, ef_construction = 64)
-        """
-    )
+    # HNSW vector index — only when pgvector is available
+    if pgvector_ok:
+        op.execute(
+            """
+            CREATE INDEX ix_analysis_embedding_hnsw
+            ON analysis_results
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64)
+            """
+        )
 
     op.create_table(
         "stock_prices",
