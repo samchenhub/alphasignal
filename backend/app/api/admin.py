@@ -33,24 +33,24 @@ async def trigger_sync(x_admin_secret: str | None = Header(default=None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/gemini-status")
-async def gemini_status():
-    """Check if Gemini is configured and test a live API call."""
-    from app.analysis.claude_analyzer import _client, GEMINI_MODEL
-    from google.genai import types
-    key = settings.gemini_api_key
+@router.get("/llm-status")
+async def llm_status():
+    """Check if Groq is configured and test a live API call."""
+    from app.analysis.claude_analyzer import _client, GROQ_MODEL
+    key = settings.groq_api_key
     if not key:
-        return {"key_set": False, "client_ready": False, "error": "GEMINI_API_KEY not set"}
+        return {"key_set": False, "client_ready": False, "error": "GROQ_API_KEY not set"}
     if _client is None:
         return {"key_set": True, "client_ready": False, "error": "Client not initialized — redeploy needed"}
     try:
         import asyncio
         result = await asyncio.to_thread(
-            _client.models.generate_content,
-            model=GEMINI_MODEL,
-            contents="Say OK",
+            _client.chat.completions.create,
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": "Say OK"}],
+            max_tokens=10,
         )
-        return {"key_set": True, "client_ready": True, "test_response": result.text[:50]}
+        return {"key_set": True, "client_ready": True, "test_response": result.choices[0].message.content}
     except Exception as e:
         return {"key_set": True, "client_ready": True, "error": str(e)}
 

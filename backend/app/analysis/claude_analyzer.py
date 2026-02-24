@@ -1,19 +1,18 @@
 """
-LLM Analysis Pipeline — Google Gemini 2.0 Flash
+LLM Analysis Pipeline — Groq + Llama 3.3 70B
 
 Two-stage processing:
-  Stage 1 — Gemini Flash (fast): filter irrelevant articles
-  Stage 2 — Gemini Flash (powerful): full structured extraction
+  Stage 1 — Llama 3.3 70B (fast): filter irrelevant articles
+  Stage 2 — Llama 3.3 70B (powerful): full structured extraction
 
-Free tier: 1,500 requests/day, 1M tokens/day
-https://aistudio.google.com
+Free tier: 14,400 requests/day, 30 RPM
+https://console.groq.com
 """
 import asyncio
 import json
 import logging
 
-from google import genai
-from google.genai import types
+from groq import Groq
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -29,42 +28,44 @@ from app.db.models import Alert, AnalysisResult, Article
 
 logger = logging.getLogger(__name__)
 
-GEMINI_MODEL = "gemini-2.0-flash-lite"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
-# Initialise Gemini client — None when API key is not configured
+# Initialise Groq client — None when API key is not configured
 _client = None
-if settings.gemini_api_key:
-    _client = genai.Client(api_key=settings.gemini_api_key)
+if settings.groq_api_key:
+    _client = Groq(api_key=settings.groq_api_key)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _call_gemini_filter(prompt: str) -> str:
-    response = _client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=FILTER_SYSTEM,
-            max_output_tokens=256,
-        ),
+def _call_groq_filter(prompt: str) -> str:
+    response = _client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": FILTER_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=256,
+        temperature=0.1,
     )
-    return response.text
+    return response.choices[0].message.content
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def _call_gemini_analysis(prompt: str) -> str:
-    response = _client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=ANALYSIS_SYSTEM,
-            max_output_tokens=1024,
-        ),
+def _call_groq_analysis(prompt: str) -> str:
+    response = _client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": ANALYSIS_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=1024,
+        temperature=0.1,
     )
-    return response.text
+    return response.choices[0].message.content
 
 
 def _strip_fences(raw: str) -> str:
-    """Remove markdown code fences that Gemini sometimes wraps JSON in."""
+    """Remove markdown code fences that LLMs sometimes wrap JSON in."""
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         cleaned = "\n".join(cleaned.split("\n")[1:])
@@ -74,23 +75,23 @@ def _strip_fences(raw: str) -> str:
 
 
 def _is_relevant(title: str, content: str, tickers: list[str]) -> bool:
-    """Stage 1: Quick relevance filter via Gemini Flash."""
+    """Stage 1: Quick relevance filter."""
     prompt = filter_prompt(title, content, tickers)
     try:
-        raw = _call_gemini_filter(prompt)
+        raw = _call_groq_filter(prompt)
         data = json.loads(_strip_fences(raw))
         return bool(data.get("relevant", False))
     except Exception as e:
         logger.debug("Filter parse error: %s — defaulting to relevant", e)
-        return True  # When in doubt, analyse it
+        return True
 
 
 def _analyze(title: str, content: str, tickers: list[str], market: str) -> dict | None:
-    """Stage 2: Full structured extraction via Gemini Flash."""
+    """Stage 2: Full structured extraction."""
     prompt = analysis_prompt(title, content, tickers, market)
     raw = ""
     try:
-        raw = _call_gemini_analysis(prompt)
+        raw = _call_groq_analysis(prompt)
         return json.loads(_strip_fences(raw))
     except json.JSONDecodeError as e:
         logger.warning("JSON parse error in analysis: %s\nRaw: %s", e, raw[:200])
@@ -109,7 +110,7 @@ async def process_unanalyzed_articles(
     Returns the number of articles processed.
     """
     if _client is None:
-        logger.warning("GEMINI_API_KEY not set — skipping LLM analysis")
+        logger.warning("GROQ_API_KEY not set — skipping LLM analysis")
         return 0
 
     tickers_us = settings.us_ticker_list
@@ -169,7 +170,7 @@ async def process_unanalyzed_articles(
                 entities=result_data.get("entities"),
                 summary=result_data.get("summary"),
                 key_events=result_data.get("key_events"),
-                model_version=GEMINI_MODEL,
+                model_version=GROQ_MODEL,
             )
             session.add(analysis)
 

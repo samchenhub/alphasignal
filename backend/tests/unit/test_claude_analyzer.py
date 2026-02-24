@@ -11,23 +11,23 @@ class TestIsRelevant:
     """Tests for Stage 1: relevance filter."""
 
     def test_returns_true_when_relevant(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_filter", return_value='{"relevant": true}'):
+        with patch("app.analysis.claude_analyzer._call_groq_filter", return_value='{"relevant": true}'):
             result = _is_relevant("Apple Q4 earnings beat estimates", "content", ["AAPL"])
         assert result is True
 
     def test_returns_false_when_not_relevant(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_filter", return_value='{"relevant": false}'):
+        with patch("app.analysis.claude_analyzer._call_groq_filter", return_value='{"relevant": false}'):
             result = _is_relevant("Local sports news", "content", ["AAPL"])
         assert result is False
 
     def test_defaults_to_true_on_invalid_json(self):
         """When parse fails, default to relevant (conservative — don't miss signals)."""
-        with patch("app.analysis.claude_analyzer._call_gemini_filter", return_value="not json"):
+        with patch("app.analysis.claude_analyzer._call_groq_filter", return_value="not json"):
             result = _is_relevant("title", "content", ["AAPL"])
         assert result is True
 
     def test_defaults_to_true_on_api_error(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_filter", side_effect=Exception("API error")):
+        with patch("app.analysis.claude_analyzer._call_groq_filter", side_effect=Exception("API error")):
             result = _is_relevant("title", "content", ["AAPL"])
         assert result is True
 
@@ -45,7 +45,7 @@ class TestAnalyze:
     }"""
 
     def test_parses_valid_json(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value=self.VALID_RESPONSE):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value=self.VALID_RESPONSE):
             result = _analyze("Apple guidance cut", "content", ["AAPL"], "US")
         assert result is not None
         assert result["sentiment_score"] == pytest.approx(-0.82)
@@ -55,7 +55,7 @@ class TestAnalyze:
     def test_strips_markdown_code_fences(self):
         """LLMs often wrap JSON in ```json ... ``` blocks."""
         fenced = f"```json\n{self.VALID_RESPONSE}\n```"
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value=fenced):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value=fenced):
             result = _analyze("Apple guidance cut", "content", ["AAPL"], "US")
         assert result is not None
         assert result["sentiment_score"] == pytest.approx(-0.82)
@@ -63,27 +63,27 @@ class TestAnalyze:
     def test_strips_plain_code_fences(self):
         """Also handle ``` without language tag."""
         fenced = f"```\n{self.VALID_RESPONSE}\n```"
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value=fenced):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value=fenced):
             result = _analyze("title", "content", ["AAPL"], "US")
         assert result is not None
 
     def test_returns_none_on_invalid_json(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value="Here is my analysis: blah blah"):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value="Here is my analysis: blah blah"):
             result = _analyze("title", "content", ["AAPL"], "US")
         assert result is None
 
     def test_returns_none_on_empty_response(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value=""):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value=""):
             result = _analyze("title", "content", ["AAPL"], "US")
         assert result is None
 
     def test_returns_none_on_api_error(self):
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", side_effect=Exception("rate limit")):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", side_effect=Exception("rate limit")):
             result = _analyze("title", "content", ["AAPL"], "US")
         assert result is None
 
     def test_handles_positive_sentiment(self):
         positive = self.VALID_RESPONSE.replace("-0.82", "0.95")
-        with patch("app.analysis.claude_analyzer._call_gemini_analysis", return_value=positive):
+        with patch("app.analysis.claude_analyzer._call_groq_analysis", return_value=positive):
             result = _analyze("title", "content", ["AAPL"], "US")
         assert result["sentiment_score"] == pytest.approx(0.95)

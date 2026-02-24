@@ -14,7 +14,7 @@ dependencies = [
     "pgvector>=0.3.0",
 
     # LLM
-    "google-genai>=1.0.0",           # Gemini Flash (free tier: 1500 req/day)
+    "groq>=0.13.0",                  # Groq LLM API (free tier: 14400 req/day)
 
     # Data ingestion
     "feedparser>=6.0.11",        # RSS parsing
