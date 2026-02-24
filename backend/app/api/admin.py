@@ -55,6 +55,51 @@ async def llm_status():
         return {"key_set": True, "client_ready": True, "error": str(e)}
 
 
+@router.get("/debug-analysis")
+async def debug_analysis(x_admin_secret: str | None = Header(default=None)):
+    """Run analysis on one unprocessed article and return raw result."""
+    _check_secret(x_admin_secret)
+    from sqlalchemy import select, text
+    from app.db.models import Article
+    from app.analysis.claude_analyzer import _client, _is_relevant, _analyze, GROQ_MODEL
+    from app.config import settings
+
+    async with AsyncSessionLocal() as session:
+        # Count processed vs unprocessed
+        total = (await session.execute(text("SELECT COUNT(*) FROM articles"))).scalar()
+        unprocessed = (await session.execute(
+            text("SELECT COUNT(*) FROM articles WHERE is_processed = false")
+        )).scalar()
+
+        if not _client:
+            return {"error": "GROQ_API_KEY not configured", "total": total, "unprocessed": unprocessed}
+
+        # Grab one unprocessed article
+        result = await session.execute(
+            select(Article).where(Article.is_processed == False).limit(1)  # noqa: E712
+        )
+        article = result.scalar_one_or_none()
+        if not article:
+            return {"error": "No unprocessed articles", "total": total, "unprocessed": unprocessed}
+
+        tickers = settings.us_ticker_list if article.market == "US" else settings.cn_ticker_list
+        import asyncio
+        try:
+            relevant = await asyncio.to_thread(_is_relevant, article.title or "", article.content or "", tickers)
+            analysis = await asyncio.to_thread(_analyze, article.title or "", article.content or "", tickers, article.market) if relevant else None
+            return {
+                "total": total,
+                "unprocessed": unprocessed,
+                "article_title": article.title[:100],
+                "article_market": article.market,
+                "tickers_checked": tickers,
+                "is_relevant": relevant,
+                "analysis_result": analysis,
+            }
+        except Exception as e:
+            return {"error": str(e), "total": total, "unprocessed": unprocessed, "article_title": article.title[:100]}
+
+
 @router.get("/stats")
 async def get_stats(x_admin_secret: str | None = Header(default=None)):
     """Return row counts for all tables — useful for diagnosing empty DB."""
