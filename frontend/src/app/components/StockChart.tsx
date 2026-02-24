@@ -66,18 +66,23 @@ export function StockChart({ ticker, market }: Props) {
 
   if (isLoading) {
     return (
-      <div className="h-96 flex items-center justify-center text-slate-500">
-        Loading chart data...
+      <div className="bg-[#1a1d2e] border border-[#2a2d3e] rounded-xl h-96 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm">Loading chart data…</span>
+        </div>
       </div>
     );
   }
 
   if (error || !data || data.length === 0) {
     return (
-      <div className="h-96 flex items-center justify-center text-slate-500 flex-col gap-2">
-        <span className="text-2xl">📊</span>
-        <p>No data yet for {ticker}</p>
-        <p className="text-xs">Data will appear after the first ingestion run</p>
+      <div className="bg-[#1a1d2e] border border-[#2a2d3e] rounded-xl h-96 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-slate-500">
+          <span className="text-4xl">📊</span>
+          <p className="font-medium text-slate-400">No price data yet for {ticker}</p>
+          <p className="text-xs text-slate-600">Price data syncs hourly</p>
+        </div>
       </div>
     );
   }
@@ -102,23 +107,26 @@ export function StockChart({ ticker, market }: Props) {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-white">
-            {ticker}
-            <span className="ml-2 text-xs text-slate-500 font-normal">
-              {market}
-            </span>
-          </h2>
-          {latestSentiment !== null && (
-            <div className="mt-1">
-              <SentimentBadge score={latestSentiment} />
-              <span className="text-xs text-slate-500 ml-2">latest signal</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-white">{ticker}</h2>
+              <span className="text-xs text-slate-500 bg-[#2a2d3e] px-2 py-0.5 rounded font-mono">
+                {market}
+              </span>
             </div>
-          )}
+            {latestSentiment !== null && (
+              <div className="flex items-center gap-2 mt-1">
+                <SentimentBadge score={latestSentiment} />
+                <span className="text-xs text-slate-500">latest signal</span>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="text-xs text-slate-500">
-          Price (left axis) + Sentiment ×100 (right axis) · 30d
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Price + Sentiment · 30 days</p>
+          <p className="text-xs text-slate-600 mt-0.5">Green bars = bullish · Red bars = bearish</p>
         </div>
       </div>
 
